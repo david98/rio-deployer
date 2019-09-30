@@ -16,9 +16,11 @@ class Rio:
     SET_SYS_IMG_ENDPOINT = '/siws/SetSystemImage'
     PROGRESS_ENDPOINT = '/siws/GetProgress'
 
-    def __init__(self, ip: str, port: int):
+    def __init__(self, ip: str, port: int = 80, username: str = 'admin', password: str = ''):
         self.ip = ip
         self.port = port
+        self.username = username
+        self.password = password
         self.session = requests.session()
         self.action_id = None
         self.directory = None
@@ -29,6 +31,7 @@ class Rio:
                                      files={}, data={'RebootIn': 0, 'BootMode': mode.value})
         return response.status_code == 202
 
+    # ActionID format (X stands for capital letter, 0 for number): {00XX00X0-000X-XX00-X0X0-X000XXXX0000}
     def begin_action(self, action_id: str):
         response = self.session.post(f'http://{self.ip}:{str(self.port)}{Rio.BEGIN_ACTION_ENDPOINT}', files={},
                                      data={'ActionId': action_id, 'CustomLockHolder': '666'})
@@ -41,7 +44,7 @@ class Rio:
     def put_file(self, file_name: str):
         response = self.session.put(f'http://{self.ip}:{str(self.port)}/files{self.directory}/{file_name}',
                                     data=open(file_name, 'rb'),
-                                    auth=HTTPDigestAuth('admin', ''))
+                                    auth=HTTPDigestAuth(self.username, self.password))
         self.file_name = file_name
 
     def set_system_image(self):
@@ -64,8 +67,8 @@ class Rio:
 
 if __name__ == "__main__":
     # Example usage
-    rio = Rio('172.16.3.7', 80)
-    result = rio.reboot(1)
+    rio = Rio('172.16.3.7')
+    result = rio.reboot(BootMode.SAFE)
     directory = rio.begin_action('{02CF21F5-820E-FF87-A8D9-A504FCFE9558}')
     rio.put_file('systemimage.tar.gz')
     rio.set_system_image()
