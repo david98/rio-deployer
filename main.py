@@ -26,12 +26,14 @@ class Rio:
         self.directory = None
         self.file_name = None
 
+    '''Reboots device into selected mode and returns True if reboot was succesful, False otherwise'''
     def reboot(self, mode: BootMode = BootMode.NORMAL):
         response = self.session.post(f'http://{self.ip}:{str(self.port)}{Rio.REBOOT_ENDPOINT}',
                                      files={}, data={'RebootIn': 0, 'BootMode': mode.value})
         return response.status_code == 202
 
     # ActionID format (X stands for capital letter, 0 for number): {00XX00X0-000X-XX00-X0X0-X000XXXX0000}
+    '''Starts an action and returns the related new folder on the device'''
     def begin_action(self, action_id: str):
         response = self.session.post(f'http://{self.ip}:{str(self.port)}{Rio.BEGIN_ACTION_ENDPOINT}', files={},
                                      data={'ActionId': action_id, 'CustomLockHolder': '666'})
@@ -41,12 +43,14 @@ class Rio:
         self.directory = soup.findAll('BeginAction')[0].get('Directory')
         return self.directory
 
+    '''Uploads file in the action directory'''
     def put_file(self, file_name: str):
         response = self.session.put(f'http://{self.ip}:{str(self.port)}/files{self.directory}/{file_name}',
                                     data=open(file_name, 'rb'),
                                     auth=HTTPDigestAuth(self.username, self.password))
         self.file_name = file_name
 
+    '''Starts flashing uploaded image'''
     def set_system_image(self):
         if self.action_id is None or self.directory is None:
             raise Exception('No system image file uploaded yet.')
@@ -61,8 +65,10 @@ class Rio:
         if elements is None or len(elements) == 0 or elements[0].get('Result') != '0':
             raise Exception('Error while setting system image.')
 
+    '''Returns a string representing an XML with info on the flashing process status'''
     def get_progress(self):
         response = self.session.get(f'http://{self.ip}:{str(self.port)}{Rio.PROGRESS_ENDPOINT}')
+        return response.content.decode('utf-8')
 
 
 if __name__ == "__main__":
