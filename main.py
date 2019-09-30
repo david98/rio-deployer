@@ -14,7 +14,7 @@ class Rio:
     REBOOT_ENDPOINT = '/rtexecsvc/RebootEx'
     BEGIN_ACTION_ENDPOINT = '/siws/BeginAction'
     SET_SYS_IMG_ENDPOINT = '/siws/SetSystemImage'
-    PROGRESS_ENDPOINT = '/siws/GetProgress'
+    PROGRESS_ENDPOINT = '/siws/Progress'
 
     def __init__(self, ip: str, port: int = 80, username: str = 'admin', password: str = ''):
         self.ip = ip
@@ -74,8 +74,8 @@ class Rio:
 if __name__ == "__main__":
     # Example usage
     rio = Rio('172.16.3.7')
-    result = rio.reboot(BootMode.SAFE)
-    directory = rio.begin_action('{02CF21F5-820E-FF87-A8D9-A504FCFE9558}')
-    rio.put_file('systemimage.tar.gz')
-    rio.set_system_image()
-    rio.get_progress()
+    result = rio.reboot(BootMode.NORMAL)
+    #directory = rio.begin_action('{02CF21F5-820E-FF87-A8D9-A504FCFE9558}')
+    #rio.put_file('systemimage.tar.gz')
+    #rio.set_system_image()
+    #print(rio.get_progress())
