@@ -1,3 +1,4 @@
+0. Extract .lvappimg file
 1. Reboot in normal mode
 2. Reboot in safe mode
 3. Begin action with arbitrary string ID
