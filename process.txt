@@ -1,0 +1,7 @@
+1. Reboot in normal mode
+2. Reboot in safe mode
+3. Begin action with arbitrary string ID
+4. Upload systemimage.tar.gz
+5. Set system image
+6. Check progress
+7. Reboot in normal mode
