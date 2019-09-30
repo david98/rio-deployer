@@ -41,7 +41,7 @@ class Rio:
         response = self.session.post(f'http://{self.ip}:{str(self.port)}/siws/SetSystemImage',
                                      data={'Blacklist': '', 'ActionID': self.action_id,
                                            'Timeout': '180000',
-                                           'Options': '8204', 'LocalPath': self.directory + self.file_name},
+                                           'Options': '8204', 'LocalPath': f'{self.directory}/{self.file_name}'},
                                      files={})
         soup = BeautifulSoup(response.content.decode('utf-8'), 'xml')
         print(response.status_code)
@@ -57,9 +57,8 @@ class Rio:
 
 if __name__ == "__main__":
     rio = Rio('172.16.3.7', 80)
-    result = rio.reboot(1)
-    '''
-    directory = rio.begin_action('{02CF21F5-820E-FF87-A8D9-A504FCFE9558}')
-    rio.put_file('systemimage.tar.gz')
-    rio.set_system_image()
-    rio.get_progress()'''
+    result = rio.reboot(0)
+    #directory = rio.begin_action('{02CF21F5-820E-FF87-A8D9-A504FCFE9558}')
+    #rio.put_file('systemimage.tar.gz')
+    #rio.set_system_image()
+    #rio.get_progress()
