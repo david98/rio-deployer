@@ -2,7 +2,11 @@ import requests
 from requests.auth import HTTPDigestAuth
 from bs4 import BeautifulSoup
 from enum import Enum
-
+import os
+from zeroconf import Zeroconf, ServiceBrowser
+import socket
+import json
+import time
 
 class BootMode(Enum):
     NORMAL = 0
@@ -15,6 +19,8 @@ class Rio:
     BEGIN_ACTION_ENDPOINT = '/siws/BeginAction'
     SET_SYS_IMG_ENDPOINT = '/siws/SetSystemImage'
     PROGRESS_ENDPOINT = '/siws/Progress'
+    FW_UPDATE_ENDPOINT = '/nisysapi/server_firmware'
+    LOGIN_ENDPOINT = '/login'
 
     def __init__(self, ip: str, port: int = 80, username: str = 'admin', password: str = ''):
         self.ip = ip
@@ -44,7 +50,7 @@ class Rio:
         return self.directory
 
     '''Uploads file in the action directory'''
-    def put_file(self, file_name: str):
+    def put_image_file(self, file_name: str):
         response = self.session.put(f'http://{self.ip}:{str(self.port)}/files{self.directory}/{file_name}',
                                     data=open(file_name, 'rb'),
                                     auth=HTTPDigestAuth(self.username, self.password))
@@ -66,16 +72,75 @@ class Rio:
             raise Exception('Error while setting system image.')
 
     '''Returns a string representing an XML with info on the flashing process status'''
-    def get_progress(self):
+    def get_deploy_progress(self):
         response = self.session.get(f'http://{self.ip}:{str(self.port)}{Rio.PROGRESS_ENDPOINT}')
         return response.content.decode('utf-8')
+
+    def update_firmware(self, file_name: str):
+        size: int = os.stat(file_name).st_size
+        response = self.session.post(f'http://{self.ip}:{str(self.port)}{Rio.FW_UPDATE_ENDPOINT}',
+                                     data={'Version': '00010001', 'Plugins': 'nisyscfg,crio', 'Items': 'system,system',
+                                           'response_encoding': 'UTF-8', 'Function': 'BeginFirmwareChange',
+                                           'StopTasks': '1', 'ImageLength': f'{size:02x}'.upper()})
+        print(response.content)
+
+    def login(self):
+        response = self.session.post(f'http://{self.ip}:{self.port}{Rio.LOGIN_ENDPOINT}',
+                                     auth=HTTPDigestAuth(self.username, self.password))
+        print(response.status_code)
+
+
+class Listener:
+
+    def __init__(self, finder):
+        self.finder = finder
+
+    def add_service(self, zeroconf, type, name):
+        info = zeroconf.get_service_info(type, name)
+        ip: str = socket.inet_ntoa(info.address)
+        if 'NI-cRIO' not in name:
+            return
+        if info.properties[b'DevClass'] != b'cRIO':
+            return
+        self.finder.on_new_rio({
+            'IPAddress': ip,
+            'ProdName': info.properties[b'ProdName'].decode('utf-8'),
+            'SerialNo': info.properties[b'SerialNo'].decode('utf-8'),
+            'MAC': info.properties[b'MAC'].decode('utf-8')
+        })
+
+
+class RioFinder:
+
+    SERVICE_NAME = '_ni._tcp.local.'
+
+    def __init__(self):
+        self.zeroconf = Zeroconf()
+        self.listener = Listener(self)
+        self.browser = ServiceBrowser(self.zeroconf, RioFinder.SERVICE_NAME, self.listener)
+        self.current_list = []
+
+    def stop(self):
+        self.browser.cancel()
+
+    def on_new_rio(self, rio: dict):
+        if json.dumps(rio, sort_keys=True) not in self.current_list:
+            self.current_list.append(rio)
 
 
 if __name__ == "__main__":
     # Example usage
-    rio = Rio('172.16.3.7')
+    finder = RioFinder()
+    time.sleep(5)
+    finder.stop()
+    if len(finder.current_list) == 0:
+        print('No devices found.')
+        exit(1)
+    rio = Rio(finder.current_list[0]['IPAddress'])
     result = rio.reboot(BootMode.NORMAL)
     #directory = rio.begin_action('{02CF21F5-820E-FF87-A8D9-A504FCFE9558}')
     #rio.put_file('systemimage.tar.gz')
     #rio.set_system_image()
     #print(rio.get_progress())
+    #rio.login()
+    #rio.update_firmware('process.txt')
