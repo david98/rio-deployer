@@ -8,7 +8,9 @@ import socket
 import json
 import time
 import srp
+import secrets
 from base64 import b64decode
+from hashlib import sha1
 
 
 class BootMode(Enum):
@@ -118,6 +120,70 @@ class Rio:
             'loginToken': parsed['ss']
         }
 
+    @staticmethod
+    def a():
+        # generates a secure random number which is 512 bits long
+        return secrets.randbits(512)
+
+    @staticmethod
+    def A(g, a, N):
+        d = pow(g, a, N)
+        return d
+
+    @staticmethod
+    # returns SHA1(A + B)
+    def u(A: int, B: int):
+        Ab = bytearray(A.to_bytes(128, 'big'))
+        Bb = bytearray(B.to_bytes(128, 'big'))
+        ABb = Ab + Bb
+        return int(sha1(ABb).hexdigest(), 16)
+
+    @staticmethod
+    def k(N: int, g: int):
+        Nb = bytearray(N.to_bytes(128, 'big'))
+        gb = bytearray(g.to_bytes(128, 'big'))
+        Ngb = Nb + gb
+        return int(sha1(Ngb).hexdigest(), 16)
+
+    @staticmethod
+    def x(s, username, password):
+        username = username if username else ''
+        password = password if password else ''
+        return int(sha1(s + sha1((username + ':' + password).encode('utf-8')).digest()).hexdigest(), 16)
+
+    @staticmethod
+    def Sc(N, g, B, k, x, a, u):
+        return B + (k * pow((N - pow(g, x, N)) % N, a + u * x, N))
+
+    @staticmethod
+    def MGF1SHA1(byte_array):
+        C1 = byte_array + [0, 0, 0, 0]
+        C2 = byte_array + [0, 0, 0, 1]
+        return sha1(C1) + sha1(C2)
+
+    @staticmethod
+    def K(S: int):
+        Sb = bytearray(S.to_bytes(128, 'big'))
+        return Rio.MGF1SHA1(Sb).digest()
+
+    @staticmethod
+    def generate_pub_key_and_proof(modulus, generator, salt, srv_pub_key, username, password):
+        N = modulus
+        g = generator
+        s = salt
+        B = srv_pub_key
+
+        a = Rio.a()
+        A = Rio.A(g, a, N)
+        u = Rio.u(A, B)
+
+        k = Rio.k(N, g)
+        x = Rio.x(s, username, password)
+        S = Rio.Sc(N, g, B, k, x, a, u)
+        K = Rio.K(S)
+
+        print(K)
+
     def login(self):
         usr = srp.User(self.username, self.password)
         response = self.session.get(f'http://{self.ip}:{self.port}{Rio.LOGIN_ENDPOINT}?username={self.username}')
@@ -125,12 +191,15 @@ class Rio:
             pass
         elif response.status_code == 403:
             server_params = response.headers.get('X-NI-AUTH-PARAMS')
+            print(server_params)
             server_info = self.decode_server_params(server_params)
 
             modulus = server_info['modulus']
             generator = server_info['generator']
             salt = server_info['salt']
             server_public_key = server_info['serverPublicKey']
+
+            Rio.generate_pub_key_and_proof(modulus, generator, salt, server_public_key, self.username, self.password)
 
 
 class Listener:
@@ -186,3 +255,5 @@ if __name__ == "__main__":
     rio.put_image_file('systemimage.tar.gz')
     rio.set_system_image()
     print(rio.get_deploy_progress())'''
+    rio = Rio('172.16.3.7')
+    rio.login()
